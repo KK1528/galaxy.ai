@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workflow {
+  id        String        @id @default(cuid())
+  userId    String
+  name      String
+  graph     Json          // nodes + edges serialized
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  runs      WorkflowRun[]
+}
+
+model WorkflowRun {
+  id         String    @id @default(cuid())
+  workflowId String
+  workflow   Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  userId     String
+  status     String    // "running" | "success" | "failed" | "partial"
+  scope      String    // "full" | "partial" | "single"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  nodeRuns   NodeRun[]
+}
+
+model NodeRun {
+  id         String      @id @default(cuid())
+  runId      String
+  run        WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  nodeId     String
+  nodeType   String
+  nodeLabel  String
+  status     String      // "pending" | "running" | "success" | "failed"
+  inputs     Json?
+  output     Json?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  duration   Float?      // seconds
+}
