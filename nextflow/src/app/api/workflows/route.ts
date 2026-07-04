@@ -28,6 +28,7 @@ function defaultGraph(): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {
           label: 'Response',
           resultConnection: null,
           result: null,
+          slots: [{ label: 'result', value: null }],
         },
         deletable: false,
       },

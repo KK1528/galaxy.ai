@@ -153,6 +153,7 @@ const nodes: WorkflowNode[] = [
       label: 'Response',
       resultConnection: `${IDS.gemini3}:handle-response-out`,
       result: null,
+      slots: [{ label: 'result', value: null }],
     } satisfies ResponseNodeData,
   },
 ]

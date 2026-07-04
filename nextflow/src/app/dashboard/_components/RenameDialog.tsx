@@ -41,11 +41,11 @@ export function RenameDialog({ workflowId, currentName, onClose, onRenamed }: Re
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-[420px] rounded-2xl border border-[#2a2a2a] bg-[#161616] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#2a2a2a] px-5 py-4">
-          <h2 className="text-sm font-semibold text-zinc-200">Rename Workflow</h2>
-          <button onClick={onClose} className="text-zinc-600 hover:text-zinc-400">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+      <div className="w-[420px] rounded-2xl border border-[#e8e8e8] bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-[#e8e8e8] px-5 py-4">
+          <h2 className="text-sm font-semibold text-[#111111]">Rename Workflow</h2>
+          <button onClick={onClose} className="text-[#aaaaaa] hover:text-[#555555] transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -55,19 +55,23 @@ export function RenameDialog({ workflowId, currentName, onClose, onRenamed }: Re
             ref={inputRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-[#2a2a2a] bg-[#111] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30"
+            className="w-full rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-2 text-sm text-[#111111] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
             maxLength={100}
           />
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-zinc-500 hover:text-zinc-300">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-sm text-[#777777] hover:text-[#333333] transition-colors"
+            >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving || !name.trim()}
-              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50 transition-colors"
             >
               {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Save

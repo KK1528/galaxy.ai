@@ -23,6 +23,10 @@ interface WorkflowState {
   workflowId: string | null
   workflowName: string
 
+  // Callback set by the page to trigger a single-node run — keeps nodes decoupled from page
+  runNodeCallback: ((nodeId: string) => Promise<void>) | null
+  setRunNodeCallback: (fn: ((nodeId: string) => Promise<void>) | null) => void
+
   // Initialise canvas from a saved workflow
   init: (id: string, name: string, nodes: WorkflowNode[], edges: WorkflowEdge[]) => void
 
@@ -65,6 +69,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   executingNodeIds: new Set(),
   workflowId: null,
   workflowName: 'Untitled Workflow',
+  runNodeCallback: null,
+  setRunNodeCallback(fn) { set({ runNodeCallback: fn }) },
 
   init(id, name, nodes, edges) {
     set({ nodes, edges, workflowId: id, workflowName: name, past: [], future: [] })

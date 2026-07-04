@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactFlow, {
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
   ReactFlowProvider,
   type Connection,
   type NodeTypes,
@@ -13,7 +11,11 @@ import ReactFlow, {
   type ReactFlowInstance,
 } from 'reactflow'
 import { nanoid } from 'nanoid'
-import { Plus, Undo2, Redo2, Download, Upload } from 'lucide-react'
+import {
+  ChevronLeft, ChevronRight, Undo2, Redo2, Command,
+  ZoomIn, ZoomOut, Maximize2, LayoutGrid, Move,
+  FileText, Plus,
+} from 'lucide-react'
 import { useWorkflowStore } from '@/store/workflow-store'
 import { RequestInputsNode } from './nodes/RequestInputsNode'
 import { CropImageNode } from './nodes/CropImageNode'
@@ -22,6 +24,7 @@ import { ResponseNode } from './nodes/ResponseNode'
 import { AnimatedEdge } from './edges/AnimatedEdge'
 import { NodePicker } from './NodePicker'
 import { makeNodeLabel } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import type { WorkflowNode, CropImageNodeData, GeminiNodeData, HandleType } from '@/lib/types'
 
 const NODE_TYPES: NodeTypes = {
@@ -54,6 +57,35 @@ interface CanvasProps {
   isSaving: boolean
 }
 
+function ToolbarBtn({
+  onClick,
+  title,
+  disabled,
+  active,
+  children,
+}: {
+  onClick?: () => void
+  title?: string
+  disabled?: boolean
+  active?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      className={cn(
+        'flex h-8 w-8 items-center justify-center rounded-lg transition-colors text-[#444e68]',
+        active ? 'bg-[#f0f0f0] text-[#1a1a2e]' : 'hover:bg-[#f5f5f5]',
+        disabled && 'opacity-30 cursor-not-allowed',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 function CanvasInner({ workflowId, isSaving }: CanvasProps) {
   const {
     nodes, edges,
@@ -62,6 +94,8 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
   } = useWorkflowStore()
 
   const [showPicker, setShowPicker] = useState(false)
+  const [zoom, setZoom] = useState(100)
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false)
   const rfInstance = useRef<ReactFlowInstance | null>(null)
 
   const isValidConnection = useCallback((connection: Connection) => {
@@ -80,35 +114,27 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
     setShowPicker(false)
     const viewport = rfInstance.current?.getViewport() ?? { x: 0, y: 0, zoom: 1 }
     const existingLabels = nodes.map((n) => (n.data as { label: string }).label)
-
-    // Place new node near center of current viewport
     const pos = {
       x: (-viewport.x + window.innerWidth / 2 - 150) / viewport.zoom,
       y: (-viewport.y + window.innerHeight / 2 - 100) / viewport.zoom,
     }
-
     if (nodeTypeId === 'crop-image') {
-      const node: WorkflowNode = {
-        id: nanoid(),
-        type: 'cropImage',
-        position: pos,
+      addNode({
+        id: nanoid(), type: 'cropImage', position: pos,
         data: {
           nodeType: 'crop-image',
           label: makeNodeLabel('Crop Image', existingLabels),
           inputImageConnection: null,
           x: 0, y: 0, width: 100, height: 100,
         } satisfies CropImageNodeData,
-      }
-      addNode(node)
+      } as WorkflowNode)
     } else if (nodeTypeId === 'gemini') {
-      const node: WorkflowNode = {
-        id: nanoid(),
-        type: 'gemini',
-        position: pos,
+      addNode({
+        id: nanoid(), type: 'gemini', position: pos,
         data: {
           nodeType: 'gemini',
           label: makeNodeLabel('Gemini', existingLabels),
-          model: 'gemini-1.5-pro',
+          model: 'gemini-2.0-flash',
           systemPrompt: '',
           promptConnection: null,
           imageConnections: [],
@@ -116,8 +142,7 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
           response: null,
           isStreaming: false,
         } satisfies GeminiNodeData,
-      }
-      addNode(node)
+      } as WorkflowNode)
     }
   }
 
@@ -126,42 +151,29 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault(); undo()
-      }
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault(); redo()
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo])
 
-  function handleExport() {
-    const blob = new Blob([JSON.stringify({ nodes, edges }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'workflow.json'; a.click()
-    URL.revokeObjectURL(url)
+  function zoomIn() {
+    rfInstance.current?.zoomIn()
+    setZoom(Math.round((rfInstance.current?.getZoom() ?? 1) * 100))
   }
 
-  function handleImport() {
-    const input = document.createElement('input')
-    input.type = 'file'; input.accept = '.json'
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
-      try {
-        const { nodes: n, edges: ed } = JSON.parse(await file.text()) as {
-          nodes: WorkflowNode[]; edges: typeof edges
-        }
-        useWorkflowStore.getState().init(workflowId, useWorkflowStore.getState().workflowName, n, ed)
-      } catch { alert('Invalid workflow JSON') }
-    }
-    input.click()
+  function zoomOut() {
+    rfInstance.current?.zoomOut()
+    setZoom(Math.round((rfInstance.current?.getZoom() ?? 1) * 100))
+  }
+
+  function fitView() {
+    rfInstance.current?.fitView({ padding: 0.2 })
   }
 
   return (
-    <div className="relative flex-1 bg-[#0d0d0d]">
+    <div className="relative h-full w-full overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges.map((e) => ({ ...e, type: 'animated' }))}
@@ -171,7 +183,13 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
         isValidConnection={isValidConnection}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
-        onInit={(i) => { rfInstance.current = i }}
+        onInit={(i) => {
+          rfInstance.current = i
+          setZoom(Math.round(i.getZoom() * 100))
+        }}
+        onMoveEnd={() => {
+          setZoom(Math.round((rfInstance.current?.getZoom() ?? 1) * 100))
+        }}
         fitView
         fitViewOptions={{ padding: 0.25, maxZoom: 0.9 }}
         deleteKeyCode={['Backspace', 'Delete']}
@@ -179,96 +197,115 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
         maxZoom={2}
         defaultEdgeOptions={{ type: 'animated' }}
         proOptions={{ hideAttribution: true }}
+        style={{ background: '#eeeef0' }}
       >
-        {/* Dark dot grid — matches Galaxy.ai */}
+        {/* Dot grid — matches screenshots exactly */}
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1}
-          color="#262626"
-        />
-
-        {/* Controls — bottom-left, above toolbar */}
-        <Controls
-          position="bottom-left"
-          style={{ bottom: 80, left: 16 }}
-          showInteractive={false}
-        />
-
-        {/* MiniMap — bottom-right, above toolbar */}
-        <MiniMap
-          position="bottom-right"
-          style={{ bottom: 80, right: 16, width: 140, height: 90 }}
-          nodeColor="#2a2a2a"
-          maskColor="rgba(139,92,246,0.1)"
-          zoomable
-          pannable
+          gap={28}
+          size={1.5}
+          color="#c8c8cc"
+          style={{ background: '#eeeef0' }}
         />
       </ReactFlow>
 
-      {/* ── Bottom floating toolbar — Galaxy.ai style ── */}
-      <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2">
-        <div className="flex items-center gap-0.5 rounded-2xl border border-[#252525] bg-[#141414] p-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      {/* ── Bottom floating toolbar ── */}
+      <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2 flex items-end gap-3">
 
-          {/* Undo */}
-          <button
-            onClick={undo}
-            disabled={!canUndo()}
-            title="Undo (⌘Z)"
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-500 transition-all hover:bg-[#1e1e1e] hover:text-zinc-300 disabled:opacity-25 disabled:cursor-not-allowed"
+        {/* Main toolbar pill */}
+        <div className="flex items-center gap-0.5 rounded-2xl bg-white px-2 py-1.5 shadow-[0_2px_16px_rgba(0,0,0,0.12)] border border-[#e8e8e8] transition-all duration-200">
+
+          {/* Collapse / expand toggle — always visible */}
+          <ToolbarBtn
+            title={toolbarCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+            onClick={() => setToolbarCollapsed((v) => !v)}
           >
-            <Undo2 className="h-3.5 w-3.5" />
-          </button>
+            {toolbarCollapsed
+              ? <ChevronRight className="h-4 w-4" />
+              : <ChevronLeft className="h-4 w-4" />}
+          </ToolbarBtn>
 
-          {/* Redo */}
-          <button
-            onClick={redo}
-            disabled={!canRedo()}
-            title="Redo (⌘⇧Z)"
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-500 transition-all hover:bg-[#1e1e1e] hover:text-zinc-300 disabled:opacity-25 disabled:cursor-not-allowed"
-          >
-            <Redo2 className="h-3.5 w-3.5" />
-          </button>
+          {/* Everything below is hidden when collapsed */}
+          {!toolbarCollapsed && (
+            <>
+              {/* Divider */}
+              <div className="mx-0.5 h-5 w-px bg-[#e8e8e8]" />
 
-          {/* Divider */}
-          <div className="mx-1 h-5 w-px bg-[#2a2a2a]" />
+              {/* Undo */}
+              <ToolbarBtn title="Undo (⌘Z)" onClick={undo} disabled={!canUndo()}>
+                <Undo2 className="h-3.5 w-3.5" />
+              </ToolbarBtn>
 
-          {/* ＋ Add node — prominent center button */}
-          <button
-            onClick={() => setShowPicker(true)}
-            title="Add node"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-[0_0_12px_rgba(124,58,237,0.5)] transition-all hover:bg-violet-500 hover:shadow-[0_0_18px_rgba(124,58,237,0.7)]"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+              {/* Redo */}
+              <ToolbarBtn title="Redo (⌘⇧Z)" onClick={redo} disabled={!canRedo()}>
+                <Redo2 className="h-3.5 w-3.5" />
+              </ToolbarBtn>
 
-          {/* Divider */}
-          <div className="mx-1 h-5 w-px bg-[#2a2a2a]" />
+              {/* Shortcuts */}
+              <ToolbarBtn title="Keyboard shortcuts">
+                <Command className="h-3.5 w-3.5" />
+              </ToolbarBtn>
 
-          {/* Export */}
-          <button
-            onClick={handleExport}
-            title="Export JSON"
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-500 transition-all hover:bg-[#1e1e1e] hover:text-zinc-300"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
+              {/* Divider */}
+              <div className="mx-0.5 h-5 w-px bg-[#e8e8e8]" />
 
-          {/* Import */}
-          <button
-            onClick={handleImport}
-            title="Import JSON"
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-zinc-500 transition-all hover:bg-[#1e1e1e] hover:text-zinc-300"
-          >
-            <Upload className="h-3.5 w-3.5" />
-          </button>
+              {/* Zoom out */}
+              <ToolbarBtn title="Zoom out" onClick={zoomOut}>
+                <ZoomOut className="h-3.5 w-3.5" />
+              </ToolbarBtn>
+
+              {/* Zoom % — click to reset to 100% */}
+              <button
+                onClick={() => { rfInstance.current?.zoomTo(1); setZoom(100) }}
+                title="Reset zoom"
+                className="min-w-[46px] px-1 text-center text-xs font-medium text-[#444e68] hover:bg-[#f5f5f5] rounded-lg h-8 transition-colors"
+              >
+                {zoom}%
+              </button>
+
+              {/* Zoom in */}
+              <ToolbarBtn title="Zoom in" onClick={zoomIn}>
+                <ZoomIn className="h-3.5 w-3.5" />
+              </ToolbarBtn>
+
+              {/* Divider */}
+              <div className="mx-0.5 h-5 w-px bg-[#e8e8e8]" />
+
+              {/* Fit view */}
+              <ToolbarBtn title="Fit to screen" onClick={fitView}>
+                <Maximize2 className="h-3.5 w-3.5" />
+              </ToolbarBtn>
+
+              {/* Grid toggle */}
+              <ToolbarBtn title="Toggle grid">
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </ToolbarBtn>
+
+              {/* Auto-layout */}
+              <ToolbarBtn title="Auto-layout">
+                <Move className="h-3.5 w-3.5" />
+              </ToolbarBtn>
+            </>
+          )}
         </div>
 
-        {/* Saving indicator below toolbar */}
-        {isSaving && (
-          <p className="mt-1.5 text-center text-[10px] text-zinc-600">Saving…</p>
-        )}
+        {/* Add node pill — always visible */}
+        <div className="flex items-center gap-1 rounded-2xl bg-white px-2 py-1.5 shadow-[0_2px_16px_rgba(0,0,0,0.12)] border border-[#e8e8e8]">
+          <ToolbarBtn title="Templates">
+            <FileText className="h-4 w-4" />
+          </ToolbarBtn>
+          <ToolbarBtn title="Add node" onClick={() => setShowPicker(true)}>
+            <Plus className="h-4 w-4" />
+          </ToolbarBtn>
+        </div>
       </div>
+
+      {/* Saving indicator */}
+      {isSaving && (
+        <div className="absolute bottom-20 left-1/2 z-20 -translate-x-1/2">
+          <p className="text-[10px] text-[#aaaaaa]">Saving…</p>
+        </div>
+      )}
 
       {/* Node picker */}
       {showPicker && (
@@ -281,7 +318,9 @@ function CanvasInner({ workflowId, isSaving }: CanvasProps) {
 export function Canvas(props: CanvasProps) {
   return (
     <ReactFlowProvider>
-      <CanvasInner {...props} />
+      <div className="h-full w-full">
+        <CanvasInner {...props} />
+      </div>
     </ReactFlowProvider>
   )
 }

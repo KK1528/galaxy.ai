@@ -15,6 +15,7 @@ interface HistoryState {
   toggleExpand: (runId: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
+  reset: () => void
 }
 
 export const useHistoryStore = create<HistoryState>((set) => ({
@@ -24,11 +25,26 @@ export const useHistoryStore = create<HistoryState>((set) => ({
   error: null,
 
   setRuns(runs) {
-    set({ runs })
+    // Merge incoming server data with any optimistic runs already in state.
+    // Existing entries are updated in-place; new ones are appended.
+    set((s) => {
+      const map = new Map(s.runs.map((r) => [r.id, r]))
+      for (const r of runs) map.set(r.id, r)
+      // Preserve the server-defined order (newest first) while keeping
+      // any optimistic runs that haven't been returned by the server yet.
+      const serverIds = new Set(runs.map((r) => r.id))
+      const optimistic = s.runs.filter((r) => !serverIds.has(r.id))
+      return { runs: [...optimistic, ...runs] }
+    })
   },
 
   prependRun(run) {
-    set((s) => ({ runs: [run, ...s.runs] }))
+    // Only prepend if this run ID isn't already tracked (avoids duplicates
+    // when the polling loop fetches the same run back from the server).
+    set((s) => {
+      if (s.runs.some((r) => r.id === run.id)) return s
+      return { runs: [run, ...s.runs] }
+    })
   },
 
   updateRun(run) {
@@ -49,5 +65,9 @@ export const useHistoryStore = create<HistoryState>((set) => ({
 
   setError(error) {
     set({ error })
+  },
+
+  reset() {
+    set({ runs: [], expandedRunId: null, isLoading: false, error: null })
   },
 }))

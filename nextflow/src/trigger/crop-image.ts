@@ -26,9 +26,6 @@ export const cropImageTask = task({
     await metadata.set('status', 'running')
     await metadata.set('nodeRunId', nodeRunId)
 
-    // ── MANDATORY: 30+ second artificial delay ────────────────────────
-    await new Promise((resolve) => setTimeout(resolve, 31_000))
-
     // ── Transloadit FFmpeg crop assembly ─────────────────────────────
     const TRANSLOADIT_KEY = process.env.TRANSLOADIT_KEY!
     const TRANSLOADIT_SECRET = process.env.TRANSLOADIT_SECRET!
@@ -38,20 +35,36 @@ export const cropImageTask = task({
     }
 
     // Build the Transloadit assembly params
+    // Transloadit requires auth.expires in format: "YYYY/MM/DD HH:MM:SS+00:00"
+    const exp = new Date(Date.now() + 60 * 60 * 1000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const expires = `${exp.getUTCFullYear()}/${pad(exp.getUTCMonth() + 1)}/${pad(exp.getUTCDate())} ${pad(exp.getUTCHours())}:${pad(exp.getUTCMinutes())}:${pad(exp.getUTCSeconds())}+00:00`
+
+    // Determine if the imageUrl is a base64 data URL or a regular HTTP URL.
+    // Transloadit's /http/import robot cannot fetch data: URLs — when we have
+    // a base64 data URL we must upload the raw bytes directly as a file field.
+    const isDataUrl = imageUrl.startsWith('data:')
+
     const params = {
-      auth: { key: TRANSLOADIT_KEY },
+      auth: {
+        key: TRANSLOADIT_KEY,
+        expires,
+      },
       steps: {
-        ':original': {
-          robot: '/http/import',
-          url: imageUrl,
-        },
+        // Use :original (upload handle) when uploading directly,
+        // or a named http_import step when fetching from a URL.
+        ...(isDataUrl
+          ? {}
+          : {
+              http_import: {
+                robot: '/http/import',
+                url: imageUrl,
+              },
+            }),
         cropped: {
           robot: '/image/resize',
-          use: ':original',
-          // Transloadit crop uses gravity + width/height offsets
-          // Convert percentage coords to the robot's crop params
-          // We'll use /image/resize with crop gravity
-          gravity: 'NorthWest',
+          use: isDataUrl ? ':original' : 'http_import',
+          gravity: 'top-left',
           crop: {
             x1: `${x}p`,
             y1: `${y}p`,
@@ -59,31 +72,44 @@ export const cropImageTask = task({
             y2: `${y + height}p`,
           },
           imagemagick_stack: 'v3.0.0',
-        },
-        exported: {
-          robot: '/s3/store',
-          use: 'cropped',
-          credentials: 'nextflow_s3',
+          result: true,
         },
       },
     }
 
+    // Serialize ONCE — same string used for signing and sending
+    const paramsStr = JSON.stringify(params)
+
     // POST assembly to Transloadit
     const formData = new FormData()
-    formData.append('params', JSON.stringify(params))
+    formData.append('params', paramsStr)
 
-    // Create HMAC-SHA256 signature
+    // If the image is a base64 data URL, decode it and attach as a file.
+    // Transloadit will treat it as the :original upload.
+    if (isDataUrl) {
+      const [meta, b64] = imageUrl.split(',')
+      const mimeType = meta.split(':')[1].split(';')[0]
+      const ext = mimeType.split('/')[1] ?? 'jpg'
+      const binaryStr = atob(b64)
+      const bytes = new Uint8Array(binaryStr.length)
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i)
+      formData.append('file', new Blob([bytes], { type: mimeType }), `image.${ext}`)
+    }
+
+    // HMAC-SHA384 signature (Transloadit requires sha384 for newer accounts)
     const encoder = new TextEncoder()
-    const keyData = encoder.encode(TRANSLOADIT_SECRET)
-    const msgData = encoder.encode(JSON.stringify(params))
     const cryptoKey = await crypto.subtle.importKey(
-      'raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+      'raw',
+      encoder.encode(TRANSLOADIT_SECRET),
+      { name: 'HMAC', hash: 'SHA-384' },
+      false,
+      ['sign'],
     )
-    const sigBuffer = await crypto.subtle.sign('HMAC', cryptoKey, msgData)
+    const sigBuffer = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(paramsStr))
     const sigHex = Array.from(new Uint8Array(sigBuffer))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')
-    formData.append('signature', `sha256:${sigHex}`)
+    formData.append('signature', `sha384:${sigHex}`)
 
     const assemblyRes = await fetch('https://api2.transloadit.com/assemblies', {
       method: 'POST',
@@ -117,8 +143,7 @@ export const cropImageTask = task({
       throw new Error(`Transloadit assembly error: ${result.error}`)
     }
 
-    const outputUrl = result.results?.['exported']?.[0]?.ssl_url
-      ?? result.results?.['cropped']?.[0]?.ssl_url
+    const outputUrl = result.results?.['cropped']?.[0]?.ssl_url
 
     if (!outputUrl) {
       throw new Error('Transloadit did not return an output URL')

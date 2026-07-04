@@ -8,7 +8,7 @@ export default defineConfig({
   dirs: ['./src/trigger'],
 
   retries: {
-    enabledInDev: false,
+    enabledInDev: true,
     default: {
       maxAttempts: 2,
       minTimeoutInMs: 1000,

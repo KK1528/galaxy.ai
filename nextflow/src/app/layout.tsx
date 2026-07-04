@@ -29,7 +29,7 @@ export default function RootLayout({
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       >
-        <body className="h-full bg-[#0f0f0f] text-white">{children}</body>
+        <body className="h-full bg-[#f5f5f5] text-[#111111]">{children}</body>
       </html>
     </ClerkProvider>
   )

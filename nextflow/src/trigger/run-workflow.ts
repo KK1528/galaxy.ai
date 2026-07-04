@@ -96,16 +96,29 @@ export const runWorkflowTask = task({
     }
 
     // Helper: resolve all image URLs connected to a node's image handles
+    // Also includes manually uploaded images stored in node data (imageConnections)
     function resolveImageUrls(nodeId: string): string[] {
-      const imageEdges = edges.filter(
-        (e) => e.target === nodeId && e.targetHandle?.includes('image'),
-      )
-      return imageEdges
+      const node = activeNodes.find((n) => n.id === nodeId)
+      const data = node?.data as NodeData | undefined
+
+      // 1. URLs from connected edges (upstream node outputs)
+      const edgeUrls = edges
+        .filter((e) => e.target === nodeId && e.targetHandle?.includes('image'))
         .map((e) => {
           const out = outputs.get(e.source)
           return (out?.['outputUrl'] as string | undefined) ?? ''
         })
         .filter(Boolean)
+
+      // 2. Manually uploaded image URLs stored directly on the node
+      const manualUrls: string[] = []
+      if (data?.nodeType === 'gemini' && Array.isArray(data.imageConnections)) {
+        for (const url of data.imageConnections) {
+          if (url && !edgeUrls.includes(url)) manualUrls.push(url)
+        }
+      }
+
+      return [...edgeUrls, ...manualUrls]
     }
 
     // Trigger a single node as a background task
@@ -116,8 +129,12 @@ export const runWorkflowTask = task({
 
       try {
         if (data.nodeType === 'crop-image') {
+          // 1. Try edge-connected upstream image
+          // 2. Fall back to manually uploaded URL stored on node data
+          // 3. Fall back to inputs map (field id key)
           const inputImageUrl =
             resolveInput(nodeId, 'handle-image-in') ??
+            (data.inputImageConnection ?? undefined) ??
             inputs['image_field'] ??
             ''
 
@@ -149,11 +166,13 @@ export const runWorkflowTask = task({
             ''
           const imageUrls = resolveImageUrls(nodeId)
 
+          const DEPRECATED_MODELS = new Set(['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'])
+          const requestedModel = data.model ?? 'gemini-2.0-flash'
           const geminiPayload: GeminiPayload = {
             prompt,
             systemPrompt: data.systemPrompt || undefined,
             imageUrls,
-            model: data.model ?? 'gemini-1.5-pro',
+            model: DEPRECATED_MODELS.has(requestedModel) ? 'gemini-2.0-flash' : requestedModel,
             runId: workflowRunId,
             nodeRunId,
           }
@@ -179,9 +198,26 @@ export const runWorkflowTask = task({
             }
             outputs.set(nodeId, fieldOutputs)
           } else if (data.nodeType === 'response') {
-            const resultValue =
-              resolveInput(nodeId, 'handle-result-in') ?? ''
-            outputs.set(nodeId, { result: resultValue })
+            // Collect one slot per incoming edge, named after the source node's label
+            const incomingEdges = edges.filter((e) => e.target === nodeId)
+            const slotOutputs: Array<{ label: string; value: string }> = []
+
+            for (const edge of incomingEdges) {
+              const sourceNode = activeNodes.find((n) => n.id === edge.source)
+              const sourceLabel = sourceNode
+                ? (sourceNode.data as NodeData).label
+                : edge.source
+              const value = resolveInput(nodeId, edge.targetHandle ?? 'handle-result-in') ?? ''
+              slotOutputs.push({ label: sourceLabel, value })
+            }
+
+            // Fall back to single legacy slot if no edges
+            if (slotOutputs.length === 0) {
+              const fallback = resolveInput(nodeId, 'handle-result-in') ?? ''
+              slotOutputs.push({ label: 'result', value: fallback })
+            }
+
+            outputs.set(nodeId, { slots: JSON.stringify(slotOutputs) })
           }
 
           // Mark as done with a quick DB write

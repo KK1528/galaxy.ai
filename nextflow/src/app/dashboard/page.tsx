@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { UserButton } from '@clerk/nextjs'
 import {
-  Plus, Loader2, Zap, Search, LayoutGrid, List,
+  Loader2, Zap, Search, LayoutGrid, List, Plus,
 } from 'lucide-react'
 import { useLinkedInLog } from '@/hooks/useLinkedInLog'
+import { AppSidebar } from '@/components/AppSidebar'
 import { WorkflowCard } from './_components/WorkflowCard'
 import { CreateWorkflowDialog } from './_components/CreateWorkflowDialog'
 import { RenameDialog } from './_components/RenameDialog'
@@ -66,56 +66,42 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-white">
-      {/* Sidebar */}
-      <aside className="flex w-56 shrink-0 flex-col border-r border-[#1e1e1e] bg-[#0f0f0f]">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 border-b border-[#1e1e1e] px-4 py-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600">
-            <Zap className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-sm font-bold tracking-tight text-white">NextFlow</span>
-        </div>
+    <div className="flex h-screen bg-[#f5f5f5] text-[#111111]">
 
-        {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5">
-          <div className="flex items-center gap-2.5 rounded-lg bg-violet-600/10 px-3 py-2">
-            <LayoutGrid className="h-4 w-4 text-violet-400" />
-            <span className="text-sm font-medium text-violet-300">Workflows</span>
-          </div>
-        </nav>
+      <AppSidebar
+        activeItem="workflows"
+        onNewWorkflow={() => setDialog({ type: 'create' })}
+      />
 
-        {/* User */}
-        <div className="border-t border-[#1e1e1e] p-4">
-          <UserButton />
-        </div>
-      </aside>
-
-      {/* Main */}
+      {/* ── Main ── */}
       <main className="flex flex-1 flex-col overflow-hidden">
+
         {/* Header */}
-        <div className="flex items-center gap-4 border-b border-[#1e1e1e] bg-[#0f0f0f] px-6 py-4">
-          <h1 className="text-lg font-bold text-zinc-100">Workflows</h1>
+        <div className="flex items-center gap-4 border-b border-[#e8e8e8] bg-white px-6 py-4">
+          <h1 className="text-base font-bold text-[#111111]">Workflows</h1>
 
           <div className="ml-auto flex items-center gap-3">
+
             {/* Search */}
-            <div className="flex items-center gap-2 rounded-lg border border-[#2a2a2a] bg-[#161616] px-3 py-1.5">
-              <Search className="h-3.5 w-3.5 text-zinc-600" />
+            <div className="flex items-center gap-2 rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 text-[#aaaaaa]" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search workflows..."
-                className="w-44 bg-transparent text-xs text-zinc-300 outline-none placeholder:text-zinc-600"
+                className="w-44 bg-transparent text-xs text-[#333333] outline-none placeholder:text-[#aaaaaa]"
               />
             </div>
 
             {/* View toggle */}
-            <div className="flex rounded-lg border border-[#2a2a2a] bg-[#161616] p-0.5">
+            <div className="flex rounded-lg border border-[#e0e0e0] bg-[#f8f8f8] p-0.5">
               <button
                 onClick={() => setViewMode('list')}
                 className={cn(
                   'rounded-md p-1.5 transition-colors',
-                  viewMode === 'list' ? 'bg-[#2a2a2a] text-zinc-300' : 'text-zinc-600 hover:text-zinc-400',
+                  viewMode === 'list'
+                    ? 'bg-white text-[#333333] shadow-sm'
+                    : 'text-[#aaaaaa] hover:text-[#666666]',
                 )}
               >
                 <List className="h-3.5 w-3.5" />
@@ -124,7 +110,9 @@ export default function DashboardPage() {
                 onClick={() => setViewMode('grid')}
                 className={cn(
                   'rounded-md p-1.5 transition-colors',
-                  viewMode === 'grid' ? 'bg-[#2a2a2a] text-zinc-300' : 'text-zinc-600 hover:text-zinc-400',
+                  viewMode === 'grid'
+                    ? 'bg-white text-[#333333] shadow-sm'
+                    : 'text-[#aaaaaa] hover:text-[#666666]',
                 )}
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
@@ -146,18 +134,18 @@ export default function DashboardPage() {
         <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-zinc-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-[#cccccc]" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-4 py-24">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600/10">
-                <Zap className="h-8 w-8 text-violet-500/60" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-50">
+                <Zap className="h-8 w-8 text-violet-400" />
               </div>
               <div className="text-center">
-                <p className="text-base font-semibold text-zinc-400">
+                <p className="text-base font-semibold text-[#555555]">
                   {search ? 'No workflows found' : 'No workflows yet'}
                 </p>
-                <p className="mt-1 text-sm text-zinc-600">
+                <p className="mt-1 text-sm text-[#aaaaaa]">
                   {search
                     ? 'Try a different search term'
                     : 'Create your first workflow to get started'}

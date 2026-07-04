@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "trigger:dev": "trigger.dev dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -19,8 +20,8 @@
     "@radix-ui/react-dialog": "^1.1.17",
     "@radix-ui/react-dropdown-menu": "^2.1.18",
     "@radix-ui/react-tooltip": "^1.2.10",
-    "@trigger.dev/react-hooks": "^4.4.6",
-    "@trigger.dev/sdk": "^4.4.6",
+    "@trigger.dev/react-hooks": "4.5.0",
+    "@trigger.dev/sdk": "4.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
@@ -36,7 +37,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@trigger.dev/build": "^4.4.6",
+    "@trigger.dev/build": "4.5.0",
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",

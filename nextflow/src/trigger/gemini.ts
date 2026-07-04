@@ -1,4 +1,4 @@
-import { task, metadata } from '@trigger.dev/sdk'
+import { task, metadata, AbortTaskRunError } from '@trigger.dev/sdk'
 import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
 import { prisma } from '@/lib/prisma'
 
@@ -14,13 +14,19 @@ export interface GeminiPayload {
 export const geminiTask = task({
   id: 'gemini',
   maxDuration: 120,
+  retry: {
+    maxAttempts: 2,
+    minTimeoutInMs: 60_000,  // 60s — respects the typical 429 retry-after
+    maxTimeoutInMs: 120_000,
+    factor: 2,
+  },
 
   run: async (payload: GeminiPayload) => {
     const {
       prompt,
       systemPrompt,
       imageUrls = [],
-      model = 'gemini-1.5-pro',
+      model = 'gemini-2.0-flash',
       nodeRunId,
     } = payload
 
@@ -64,7 +70,20 @@ export const geminiTask = task({
     parts.push({ text: prompt })
 
     // ── Call Gemini ───────────────────────────────────────────────────
-    const result = await geminiModel.generateContent({ contents: [{ role: 'user', parts }] })
+    let result
+    try {
+      result = await geminiModel.generateContent({ contents: [{ role: 'user', parts }] })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      // Daily quota exhaustion (limit: 0) cannot be recovered by retrying —
+      // abort immediately so we don't waste further quota attempts.
+      if (message.includes('limit: 0') && message.includes('PerDay')) {
+        throw new AbortTaskRunError(
+          'Google AI daily quota exhausted. Please enable billing at https://aistudio.google.com or wait until midnight PT for the quota to reset.',
+        )
+      }
+      throw err
+    }
     const response = result.response.text()
 
     // ── Update node run to success ────────────────────────────────────

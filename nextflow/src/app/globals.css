@@ -2,8 +2,27 @@
 @import "reactflow/dist/style.css";
 
 :root {
-  --background: #0d0d0d;
-  --foreground: #ffffff;
+  --background: #f5f5f5;
+  --foreground: #111111;
+
+  /* Surface layers */
+  --surface-0: #ffffff;
+  --surface-1: #f8f8f8;
+  --surface-2: #f0f0f0;
+
+  /* Borders */
+  --border-subtle: #e8e8e8;
+  --border-default: #e0e0e0;
+  --border-strong: #d0d0d0;
+
+  /* Text */
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  --text-muted: #999999;
+
+  /* Accent — violet kept */
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
 }
 
 @theme inline {
@@ -21,34 +40,34 @@ body {
 
 /* ── React Flow canvas background ────────────────────────────────── */
 .react-flow {
-  background-color: #0d0d0d !important;
+  background-color: #eeeef0 !important;
 }
 
 .react-flow__background {
-  background-color: #0d0d0d !important;
+  background-color: #eeeef0 !important;
 }
 
-/* Dot grid pattern matching Galaxy.ai */
+/* Dot grid — matches Magica/Galaxy.ai screenshots exactly */
 .react-flow__background pattern circle {
-  fill: #2a2a2a;
+  fill: #c8c8cc;
 }
 
 /* ── MiniMap ──────────────────────────────────────────────────────── */
 .react-flow__minimap {
-  background-color: #161616 !important;
-  border: 1px solid #252525 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
   border-radius: 10px !important;
   overflow: hidden;
 }
 
 .react-flow__minimap-mask {
-  fill: rgba(139, 92, 246, 0.12);
-  stroke: rgba(139, 92, 246, 0.3);
+  fill: rgba(124, 58, 237, 0.08);
+  stroke: rgba(124, 58, 237, 0.25);
   stroke-width: 1;
 }
 
 .react-flow__minimap-node {
-  fill: #2a2a2a;
+  fill: #e0e0e0;
   stroke: none;
 }
 
@@ -63,22 +82,23 @@ body {
 }
 
 .react-flow__controls-button {
-  background: #1c1c1c !important;
-  border: 1px solid #2a2a2a !important;
+  background: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
   border-radius: 8px !important;
-  color: #6b7280 !important;
+  color: #999999 !important;
   width: 28px !important;
   height: 28px !important;
   padding: 0 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
 }
 
 .react-flow__controls-button:hover {
-  background: #252525 !important;
-  color: #e5e7eb !important;
-  border-color: #3a3a3a !important;
+  background: #f8f8f8 !important;
+  color: #333333 !important;
+  border-color: #d0d0d0 !important;
 }
 
 .react-flow__controls-button svg {
@@ -102,23 +122,29 @@ body {
 
 /* ── Node selection ───────────────────────────────────────────────── */
 .react-flow__node.selected > div {
-  outline: 2px solid rgba(139, 92, 246, 0.6) !important;
+  outline: 2px solid rgba(124, 58, 237, 0.5) !important;
   outline-offset: 2px;
 }
 
 /* ── Pulsating glow for executing nodes ───────────────────────────── */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0px rgba(139, 92, 246, 0), 0 4px 24px rgba(0,0,0,0.4);
+    box-shadow: 0 0 0px rgba(124, 58, 237, 0), 0 2px 12px rgba(0,0,0,0.08);
   }
   50% {
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.4), 0 0 32px rgba(139, 92, 246, 0.7), 0 0 64px rgba(139, 92, 246, 0.25);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.45), 0 0 28px rgba(124, 58, 237, 0.45), 0 0 56px rgba(124, 58, 237, 0.2);
   }
 }
 
+/* Target both the inner node div and the ReactFlow wrapper */
 .node-executing {
-  animation: pulse-glow 1.5s ease-in-out infinite;
-  border-color: rgba(139, 92, 246, 0.5) !important;
+  animation: pulse-glow 1.2s ease-in-out infinite !important;
+  border-color: rgba(124, 58, 237, 0.5) !important;
+}
+
+.react-flow__node:has(.node-executing) {
+  animation: pulse-glow 1.2s ease-in-out infinite;
+  border-radius: 12px;
 }
 
 /* ── Animated edge dash ───────────────────────────────────────────── */
@@ -135,10 +161,10 @@ body {
 /* ── Custom scrollbar ─────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #bbbbbb; }
 
 /* ── Node base shadow ─────────────────────────────────────────────── */
 .react-flow__node > div {
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
 }

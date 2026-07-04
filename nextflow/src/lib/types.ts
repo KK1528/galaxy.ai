@@ -56,11 +56,17 @@ export interface GeminiNodeData {
 }
 
 // Response
+export interface ResponseSlot {
+  label: string
+  value: string | null
+}
+
 export interface ResponseNodeData {
   nodeType: 'response'
   label: string
-  resultConnection: string | null
-  result: string | null
+  resultConnection: string | null  // kept for backward-compat (single slot)
+  result: string | null            // kept for backward-compat (single slot)
+  slots: ResponseSlot[]            // multi-slot: one per connected edge
 }
 
 export type NodeData =
